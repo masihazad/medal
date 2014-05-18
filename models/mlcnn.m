@@ -412,39 +412,53 @@ methods
 		
 	end
 
-	function self = updateParams(self)
-	%net = updateParams()
-	%--------------------------------------------------------------------------
-	%Update network parameters based on states of netowrk gradient, perform
-	%regularization such as weight decay and weight rescaling
-	%--------------------------------------------------------------------------
-		wPenalty = 0;
-		for lL = 2:self.nLayers-1
-			switch self.layers{lL}.type
-			% CURRENTLY, ONLY UPDATE FILTERS AND FM BIASES
-			% PERHAPS, IN THE FUTURE, WE'LL BE FANCY, AND DO FANCY UPDATES
-			case {'conv','output'}
-				lRate = self.layers{lL}.lRate;
-				for jM = 1:self.layers{lL}.nFM
-					% UPDATE FEATURE BIASES
-					self.layers{lL}.b(jM) = self.layers{lL}.b(jM) - ...
-					                    lRate*self.layers{lL}.db(jM);
-					                    
-					% UPDATE FILTERS
-					for iM = 1:self.layers{lL-1}.nFM
-						if self.wPenalty > 0 % L2 REGULARIZATION
-							wPenalty = self.layers{lL}.filter(:,:,iM,jM)*self.wPenalty;
-						elseif self.wPenalty < 0 % L1-REGULARIZATION (SUB GRADIENTS)
-							wPenalty = sign(self.layers{lL}.filter(:,:,iM,jM))*abs(self.wPenalty);
-						end
-						self.layers{lL}.filter(:,:,iM,jM) = ...
-						self.layers{lL}.filter(:,:,iM,jM) - ...
-						lRate*(self.layers{lL}.dFilter(:,:,iM,jM)+wPenalty);
-					end
-				end
-			end
-	    end
-	end
+    function self = updateParams(self)
+    %net = updateParams()
+    %--------------------------------------------------------------------------
+    %Update network parameters based on states of netowrk gradient, perform
+    %regularization such as weight decay and weight rescaling
+    %--------------------------------------------------------------------------
+        wPenalty = 0;
+        for lL = 2:self.nLayers % Changed from: for lL = 2:self.nLayers-1 by Masih Azad
+            switch self.layers{lL}.type
+            % CURRENTLY, ONLY UPDATE FILTERS AND FM BIASES
+            % PERHAPS, IN THE FUTURE, WE'LL BE FANCY, AND DO FANCY UPDATES
+            % In this version, last layer's weights are also updated
+            case {'conv'} % Changed from: case {'conv','output'} by Masih Azad
+                lRate = self.layers{lL}.lRate;
+                for jM = 1:self.layers{lL}.nFM
+                    % UPDATE FEATURE BIASES
+                    self.layers{lL}.b(jM) = self.layers{lL}.b(jM) - ...
+                                        lRate*self.layers{lL}.db(jM);
+
+                    % UPDATE FILTERS
+                    for iM = 1:self.layers{lL-1}.nFM
+                        if self.wPenalty > 0 % L2 REGULARIZATION
+                            wPenalty = self.layers{lL}.filter(:,:,iM,jM)*self.wPenalty;
+                        elseif self.wPenalty < 0 % L1-REGULARIZATION (SUB GRADIENTS)
+                            wPenalty = sign(self.layers{lL}.filter(:,:,iM,jM))*abs(self.wPenalty);
+                        end
+                        self.layers{lL}.filter(:,:,iM,jM) = ...
+                        self.layers{lL}.filter(:,:,iM,jM) - ...
+                        lRate*(self.layers{lL}.dFilter(:,:,iM,jM)+wPenalty);
+                    end
+                end
+                %% Added by Masih Azad
+                case {'output'}
+                    lRate = self.layers{lL}.lRate;
+                    self.layers{lL}.b = self.layers{lL}.b - ...
+                                        lRate*self.layers{lL}.db;
+
+                    if self.wPenalty > 0 % L2 REGULARIZATION
+                        wPenalty = self.layers{lL}.W*self.wPenalty;
+                    elseif self.wPenalty < 0 % L1-REGULARIZATION (SUB GRADIENTS)
+                        wPenalty = sign(self.layers{lL}.W)*abs(self.wPenalty);
+                    end                
+                    self.layers{lL}.W = self.layers{lL}.W - lRate*(self.layers{lL}.dW+wPenalty);
+                %%
+            end
+        end
+    end
 
 	function out = calcAct(self,in,actFun)
 	%out = calcAct(in,actFun)
